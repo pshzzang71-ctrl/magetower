@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>마탑 강화기</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0c1110">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbit&family=Nanum+Gothic+Coding:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* 유즈맵 한 판: 어두운 맵 타일 위에 구역(강화대, 사냥터, 상점)이 나뉘어 있고, 미네랄만 청록으로 빛난다. */
+:root{
+  color-scheme:dark;
+  --map:#0c1110; --zone:#121a18; --zone-2:#19241f; --line:#27382f;
+  --text:#d6e6dc; --mute:#7d948a;
+  --mineral:#48d6e8; --ok:#6fe07a; --bad:#ff5d5d; --gold:#ffd257;
+  --display:"Orbit","Nanum Gothic Coding",monospace;
+  --body:"Nanum Gothic Coding","D2Coding","Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--map);color:var(--text);font-family:var(--body);font-size:14px;line-height:1.5;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:32px 32px}
+.wrap{max-width:1120px;margin:0 auto;padding:18px 16px 48px;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 20px}
+h1{font-family:var(--display);font-weight:400;font-size:28px;margin:0}
+h1 small{font-family:var(--body);font-size:12px;color:var(--mute);margin-left:10px}
+.res{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:baseline;font-variant-numeric:tabular-nums}
+.res .m{font-family:var(--display);font-size:26px;color:var(--mineral)}
+.res span{color:var(--mute);font-size:12px}
+.res b{color:var(--text)}
+.cols{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:16px;align-items:start}
+@media (max-width:880px){.cols{grid-template-columns:1fr}}
+.col{display:grid;gap:16px;min-width:0}
+.zone,.slot,.unit>div{min-width:0}
+h2{flex-wrap:wrap}
+@media (max-width:520px){h1 small{display:block;margin:2px 0 0}.slot .top{align-items:flex-start}}
+.zone{background:var(--zone);border:1px solid var(--line);border-radius:6px;padding:14px}
+h2{font-family:var(--display);font-weight:400;font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+h2 small{font-family:var(--body);font-size:12px;color:var(--mute)}
+.note{margin:0;padding:10px 14px;border-radius:6px;background:#1d2a1f;border:1px solid #3d5a40;font-size:13px}
+.note[hidden],#end[hidden]{display:none}
+#end{border-color:var(--gold)}
+#end h3{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 6px;color:var(--gold)}
+#end p{margin:0}
+
+.slots{display:grid;gap:8px}
+.slot{background:var(--zone-2);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:grid;gap:6px}
+.slot.locked{opacity:.4}
+.slot[hidden]{display:none}
+.slot .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.unit{display:flex;align-items:center;gap:10px;min-width:0}
+.gem{flex:none;width:22px;height:22px;transform:rotate(45deg);border-radius:4px;background:var(--g,#3a4a44);box-shadow:0 0 10px var(--g,transparent)}
+.unit b{font-weight:700;color:var(--g,var(--mute))}
+.slot .sub{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.slot .sub .s{color:var(--ok)} .slot .sub .d{color:var(--bad)}
+.track{height:8px;border-radius:2px;background:#0a0f0d;overflow:hidden}
+.track i{display:block;height:100%;width:0;background:var(--mineral)}
+.btns{display:flex;gap:6px}
+button,select{font:inherit;color:inherit;background:#0f1614;border:1px solid var(--line);border-radius:4px;padding:5px 10px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--mineral)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--mineral);outline-offset:2px}
+.crystal{border-color:#3b5a60;margin-bottom:8px}
+.crystal .gem{border-radius:2px;width:26px;height:26px;background:var(--mineral);box-shadow:0 0 14px var(--mineral)}
+.crystal b{color:var(--mineral)}
+.crystal .track i{background:var(--gold)}
+.ring{display:grid;gap:8px}
+.ring .big{font-family:var(--display);font-size:18px;color:var(--gold)}
+.ring .btns{flex-wrap:wrap}
+.hunt{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:520px){.hunt{grid-template-columns:1fr}}
+
+.ctrl{display:grid;gap:10px}
+.ctrl label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ctrl input{accent-color:var(--mineral)}
+.ctrl small{color:var(--mute);display:block}
+.shop{display:grid;gap:6px}
+.shop button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;text-align:left;padding:8px 10px;background:var(--zone-2)}
+.shop small{display:block;color:var(--mute);font-size:12px}
+.shop .c{color:var(--mineral);font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.shop .lv{color:var(--mute);font-size:12px;text-align:right}
+#log{list-style:none;margin:0;padding:0;display:grid;gap:2px;font-size:13px;max-height:230px;overflow-y:auto}
+#log li{display:grid;grid-template-columns:auto 36px minmax(0,1fr);gap:8px}
+#log time{min-width:48px}
+#log time{color:var(--mute);font-variant-numeric:tabular-nums}
+#log em{font-style:normal;font-weight:700}
+.ctrl input,#autoShop,#autoRing{accent-color:var(--mineral)}
+#log .ok em{color:var(--ok)} #log .bad em{color:var(--bad)} #log .gold em{color:var(--gold)} #log .min em{color:var(--mineral)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+th,td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-weight:400}
+th:first-child,td:first-child{text-align:left}
+td.s{color:var(--ok)} td.d{color:var(--bad)}
+.rules{margin:0;padding-left:18px;color:var(--mute);font-size:13px;display:grid;gap:4px}
+.rules b{color:var(--text)}
+.foot{display:flex;justify-content:flex-end;align-items:center;gap:12px;font-size:12px;color:var(--mute);flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>마탑 강화기<small>견습생을 마탑의 주인까지 키우는 강화 유즈맵</small></h1>
+    <div class="res"><span class="m"><b id="min" style="color:inherit">30</b></span><span>미네랄 · 초당 <b id="inc">0.5</b></span><span>기도 <b id="pity">+0.0%p</b></span><span>플레이 <b id="clock">0:00</b></span></div>
+  </header>
+
+  <p class="note" id="away" hidden></p>
+  <section class="zone" id="end" hidden><h3>마탑의 주인 탄생</h3><p id="endTxt"></p></section>
+
+  <div class="cols">
+    <div class="col">
+      <section class="zone">
+        <h2>강화대<small>수정과 별개로, 의식 시간이 차면 강화 판정이 납니다</small></h2>
+        <div class="slots" id="forge"></div>
+      </section>
+      <section class="zone">
+        <h2>사냥터<small>사냥 중인 유닛 등급이 높을수록 수정이 빨리 깨집니다</small></h2>
+        <div class="slot crystal">
+          <div class="top"><div class="unit"><span class="gem"></span><div><b id="cgName">수정 Lv.1</b><div class="sub" id="cgSub"></div></div></div><div class="sub" id="cgDps"></div></div>
+          <div class="track"><i id="cgBar"></i></div>
+          <div class="sub" id="cgOdds"></div>
+        </div>
+        <div class="slots hunt" id="hunt"></div>
+      </section>
+      <section class="zone">
+        <h2>전투 기록</h2>
+        <ol id="log"></ol>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="zone ctrl">
+        <h2>지휘</h2>
+        <label for="target">목표 등급 <select id="target"></select></label>
+        <small>강화대의 유닛은 목표 등급이 될 때까지 계속 강화합니다. 자동은 사냥터에서 가장 낮은 유닛보다 세 단계 높게 잡습니다. 사냥터에 빈 자리가 있으면 두 단계 낮게 잡아 먼저 채웁니다.</small>
+        <label><input type="checkbox" id="autoBuy"> 빈 강화대에 견습생 자동 소환 (10 미네랄)</label>
+        <label><input type="checkbox" id="autoPlace"> 목표 달성 시 사냥터로 자동 배치</label>
+        <small>사냥터가 가득 차면 가장 낮은 유닛을 팔고 교체합니다. 새 유닛이 더 낮으면 새 유닛을 팝니다.</small>
+      </section>
+      <section class="zone ring">
+        <h2>반지<small>수정에 주는 피해를 올립니다</small></h2>
+        <div><span class="big" id="ringName">반지 없음</span> <span class="sub" id="ringSub"></span></div>
+        <div class="btns"><button type="button" data-a="ring1" data-i="0" id="ring1">강화</button><button type="button" data-a="ring3" data-i="0" id="ring3">확정 강화</button></div>
+        <label><input type="checkbox" id="autoRing"> 필요한 재료가 모이면 자동으로 확정 강화</label>
+      </section>
+      <section class="zone">
+        <h2>상점</h2>
+        <div class="shop" id="shop"></div>
+      </section>
+      <section class="zone">
+        <h2>심화 상점<small>상한 없음</small></h2>
+        <div class="shop" id="xshop"></div>
+        <p class="sub" id="xsum" style="margin:8px 0 0;font-size:12px;color:var(--mute)"></p>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="autoShop"> 상점 자동 구매 (미네랄이 가격의 3배 이상일 때, 기본 상점은 1.5배)</label>
+      </section>
+      <section class="zone">
+        <h2>등급표</h2>
+        <div class="scroll"><table><thead><tr><th>등급</th><th>성공</th><th>파괴</th><th>시도비</th><th>초당 피해</th><th>판매가</th></tr></thead><tbody id="tiers"></tbody></table></div>
+      </section>
+      <section class="zone">
+        <h2>규칙</h2>
+        <ul class="rules">
+          <li>판정은 <b>성공</b>(한 단계 상승), <b>실패</b>(그대로), <b>파괴</b>(유닛 소멸) 셋 중 하나입니다. 하락은 없습니다.</li>
+          <li><b>기도</b>: 유닛이 파괴될 때마다 모든 성공 확률이 0.3%p씩 오릅니다 (최대 +15%p, 심화 상점의 깊은 기도로 최대치를 올릴 수 있습니다).</li>
+          <li>미네랄은 마력 샘에서 초당 0.5씩 나오고, 나머지는 <b>수정 파괴 보상</b>과 유닛 판매로 법니다.</li>
+          <li><b>수정</b>: 사냥터 유닛이 깎습니다. 깨질 때마다 1.2% 확률로 등급이 오르는데, 체력은 1.6배, 보상은 1.95배가 됩니다. 등급 상한은 없습니다.</li>
+          <li><b>반지</b>: 수정이 깨질 때 2.5% 확률로 나옵니다. 수정 등급 5마다 한 번에 나오는 개수가 1개씩 늘어납니다. 첫 반지는 바로 끼고, 이후는 강화 재료가 됩니다. 반지 1레벨마다 수정 피해 +25%, 레벨 상한은 없습니다.</li>
+          <li>반지 확정 강화에 필요한 재료는 <b>현재 레벨 + 2개</b>로 계속 늘어납니다. 재료 1개로 확률 도전도 할 수 있고, 실패하면 재료만 사라집니다.</li>
+          <li>마법사는 일반부터 절대까지 20개 등급(각 1~3)과 최종 <b>마탑의 주인</b>, 모두 61단계입니다. 히든 1부터는 성공 8%, 파괴 26%가 기본입니다.</li>
+          <li><b>마탑의 주인</b>을 한 명 만들면 클리어입니다.</li>
+          <li>창을 닫아 둬도 그 시간만큼 진행됩니다 (최대 30일).</li>
+        </ul>
+      </section>
+      <section class="zone">
+        <h2>기록 옮기기<small>다른 기기나 앱으로 이어서 하기</small></h2>
+        <div class="btns" style="flex-wrap:wrap"><button type="button" id="xout">내보내기 코드 만들기</button><button type="button" id="xin">아래 코드로 가져오기</button></div>
+        <textarea id="xfer" rows="3" spellcheck="false" aria-label="기록 코드" placeholder="내보내기를 누르면 코드가 여기에 나옵니다. 다른 기기에서는 그 코드를 여기에 붙여 넣고 가져오기를 누르세요." style="width:100%;margin-top:8px;font:inherit;font-size:12px;color:inherit;background:#0a0f0d;border:1px solid var(--line);border-radius:4px;padding:8px;resize:vertical"></textarea>
+        <p class="sub" id="xmsg" style="margin:6px 0 0;font-size:12px;color:var(--mute)"></p>
+      </section>
+      <div class="foot"><span id="cloud">이 기기에 저장됨</span><button type="button" id="reset">처음부터 다시</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+// ── 밸런스: 히든 1까지 약 40분~1시간. 최종 등급(61단계)은 봇 시뮬레이션에서 약 1~3년 (운에 따라 편차 큼) ──
+const S=[90,85,80,75,70,65,60,55,50,45,40,35,30,25,20];   // 성공 %
+const D=[0,0,0,5,8,10,12,15,18,20,22,25,25,28,30];        // 파괴 %
+const MAXT=61, UNIT=10, BASE=.5, T0=12, STEP=.1, S2=8, D2=26, CG2=2.3, AUTOK=3, OFFCAP=30*86400;
+const H0=5, HG=1.6, RG=1.95, RW=.15, GUP=.012, RINGP=.025, RB=.25;
+const need=l=>l+2, ringDrop=()=>1+Math.floor(s.cg/5);
+const RNAME=["구리","은","금","백금","다이아","별빛","달빛","태양","은하","우주"];
+const ringName=l=>RNAME[Math.min(9,Math.floor((l-1)/10))]+" 반지 Lv."+l;
+const chp=g=>H0*Math.pow(HG,g-1), crw=g=>H0*RW*Math.pow(RG,g-1);
+const ringP=l=>Math.min(70,Math.round(1000/(1.5*need(l)))/10);
+const GRADE=["일반","레어","유니크","에픽","레전드","히든","신화","고대","태초","초월","영원","심연","천상","창세","종말","무한","운명","진리","근원","절대"];
+const JOB=["견습생","마법사","마도사","대마도사","현자","별의 마법사","달의 마법사","태양의 마법사","은하의 마법사","차원술사","시간술사","공허술사","빛의 사도","창조술사","파멸술사","무한의 현자","운명술사","진리의 탐구자","근원의 마법사","절대자"];
+const COLOR=["#9aa8a2","#5aa9ff","#b58cff","#ff9f4a","#ffd257","#ff7ad9"];
+const col=t=>t>=MAXT?"#ffffff":gi(t)<6?COLOR[gi(t)]:"hsl("+(gi(t)*47%360)+" 75% 68%)";
+const bs=t=>t<=15?S[t-1]:S2, bd=t=>t<=15?D[t-1]:D2;
+const UP={
+  speed:{name:"신속 의식",desc:k=>k<12?"강화 시간 6% 단축":"강화 시간 1% 단축",max:30,c:k=>40*Math.pow(1.6,k)},
+  succ:{name:"집중의 룬",desc:k=>k<10?"성공 확률 +1%p":"성공 확률 +0.1%p",max:30,c:k=>60*Math.pow(1.8,k)},
+  prot:{name:"보호 결계",desc:k=>k<10?"파괴 확률 4% 감소":"파괴 확률 0.5% 감소",max:30,c:k=>80*Math.pow(1.8,k)},
+  forge:{name:"강화대 증설",desc:k=>"강화대 +1칸",max:3,c:k=>300*Math.pow(10,k)},
+  hunt:{name:"사냥터 확장",desc:k=>"사냥터 +1칸",max:6,c:k=>150*Math.pow(3,k)}};
+const FS=4, HS=8;
+const XUP={
+  amp:{name:"마력 증폭",desc:"수정 피해 +10%",c:k=>200*Math.pow(1.6,k)},
+  loot:{name:"채굴 숙련",desc:"수정 보상 +10%",c:k=>300*Math.pow(1.6,k)},
+  rite:{name:"숙련 의식",desc:"강화 시간 1.5% 단축",c:k=>2000*Math.pow(2.2,k)},
+  pray:{name:"깊은 기도",desc:"기도 최대치 +0.1%p",c:k=>5000*Math.pow(2.2,k)}};
+const $=id=>document.getElementById(id);
+const inc=t=>.3*Math.pow(1.4,t-1), sellv=t=>inc(t)*45;
+const acost=t=>t<=15?Math.round(2*Math.pow(1.7,t-1)):Math.round(2*Math.pow(1.7,14)*Math.pow(CG2,t-15));
+const gi=t=>Math.min(19,Math.floor((t-1)/3));
+const label=t=>t>=MAXT?"마탑의 주인":GRADE[gi(t)]+" "+((t-1)%3+1)+" "+JOB[gi(t)];
+
+function fresh(){return{m:30,up:{speed:0,succ:0,prot:0,forge:0,hunt:0},forge:[null,null,null,null],hunt:[],target:"auto",autoBuy:true,autoPlace:true,autoRing:true,autoShop:true,x:{amp:0,loot:0,rite:0,pray:0},cg:1,chp:H0,ring:0,mat:0,breaks:0,fin:false,v2:1,
+  t:0,made:0,boom:0,best:1,done:false,endT:0,wall:Date.now(),log:[]}}
+let s=fresh(),live=true,lastTick=0,lastSave=0,acc=0;
+
+const UNITS=["만","억","조","경","해","자","양","구","간","정","재","극"];
+function fmt(v){v=Math.floor(v);if(v<1e5)return v.toLocaleString("ko-KR");
+  const e=Math.min(UNITS.length,Math.floor(Math.log10(v)/4)),x=v/Math.pow(10,e*4);
+  return (x>=1000?Math.round(x).toLocaleString("ko-KR"):x>=100?x.toFixed(1):x.toFixed(2))+UNITS[e-1]}
+function fmtR(v){return v<100?(Math.round(v*10)/10).toFixed(1):fmt(v)}
+function fmtT(t){t=Math.floor(t);if(t>=86400)return Math.floor(t/86400)+"일 "+fmtT(t%86400);const h=Math.floor(t/3600),m=Math.floor(t%3600/60),c=t%60;return (h?h+":"+String(m).padStart(2,"0"):m)+":"+String(c).padStart(2,"0")}
+function log(kind,tag,text){if(!live)return;s.log.unshift([Math.floor(s.t),kind,tag,text]);if(s.log.length>40)s.log.length=40}
+
+const slots=()=>1+s.up.forge, hslots=()=>2+s.up.hunt;
+const huntDps=()=>s.hunt.reduce((a,t)=>a+inc(t),0)*(1+RB*s.ring)*(1+.1*s.x.amp);
+const reward=()=>crw(s.cg)*(1+.1*s.x.loot);
+const huntInc=()=>huntDps()/chp(s.cg)*reward();
+function ringUp(n,sure){ // 재료 n개로 반지 강화
+  if(s.ring<1||s.mat<n)return;s.mat-=n;
+  if(sure||Math.random()*100<ringP(s.ring)){s.ring++;log("gold","반지",ringName(s.ring)+" 강화 성공"+(sure?" (확정)":"")+" · 수정 피해 +"+Math.round(RB*s.ring*100)+"%")}
+  else log("bad","반지","반지 강화 실패, 재료 1개 소멸")}
+const pityCap=()=>15+.1*s.x.pray;
+const pity=()=>Math.min(pityCap(),s.boom*.3);
+const succB=()=>Math.min(10,s.up.succ)+.1*Math.max(0,s.up.succ-10);
+const protF=()=>1-.04*Math.min(10,s.up.prot)-.005*Math.max(0,s.up.prot-10);
+const pS=t=>Math.min(100,bs(t)+succB()+pity()), pD=t=>Math.min(100-pS(t),bd(t)*protF());
+const dur=()=>T0*Math.pow(.94,Math.min(12,s.up.speed))*Math.pow(.99,Math.max(0,s.up.speed-12))*Math.pow(.985,s.x.rite);
+function minHunt(){let j=-1;for(let i=0;i<s.hunt.length;i++)if(j<0||s.hunt[i]<s.hunt[j])j=i;return j}
+function target(){
+  if(s.target!=="auto")return Math.min(MAXT,Math.max(2,+s.target||2));
+  const j=minHunt(),mn=j<0?0:s.hunt[j];
+  if(s.hunt.length<hslots())return Math.max(3,mn-2);
+  return Math.min(MAXT,mn+AUTOK)}
+
+function place(i,force){ // 강화대 i의 유닛을 사냥터로
+  const f=s.forge[i];if(!f)return;
+  if(s.hunt.length<hslots()){s.hunt.push(f.t);log("min","배치",label(f.t)+" 사냥터 투입")}
+  else{const j=minHunt();
+    if(s.hunt[j]<f.t||force){const old=s.hunt[j];s.m+=sellv(old);s.hunt[j]=f.t;log("min","교체",label(old)+" 판매(+"+fmt(sellv(old))+") → "+label(f.t)+" 투입")}
+    else{s.m+=sellv(f.t);log("min","판매",label(f.t)+" 판매 +"+fmt(sellv(f.t)))}}
+  s.forge[i]=null}
+
+function stepSim(dt){
+  s.t+=dt;s.m+=BASE*dt;
+  if(s.autoShop){
+    for(const k in UP){const u=UP[k];if(s.up[k]<u.max&&s.m>=u.c(s.up[k])*1.5){s.m-=u.c(s.up[k]);s.up[k]++;log("min","상점",u.name+" Lv."+s.up[k])}}
+    for(const k in XUP){let g=0;while(s.m>=XUP[k].c(s.x[k])*3&&g++<5){s.m-=XUP[k].c(s.x[k]);s.x[k]++;log("min","상점",XUP[k].name+" Lv."+s.x[k])}}}
+  const dd=huntDps()*dt;
+  if(dd>0){s.chp-=dd;let g=0;
+    while(s.chp<=0&&g++<200){s.m+=reward();s.breaks++;
+      if(Math.random()<GUP){s.cg++;log("gold","수정","수정이 Lv."+s.cg+"(으)로 성장 · 보상 "+fmtR(reward()))}
+      if(Math.random()<RINGP){let n=ringDrop();
+        if(s.ring<1){s.ring=1;n--;log("gold","반지","반지 획득! 수정 피해 +25%")}
+        if(n>0){s.mat+=n;log("gold","반지","반지 재료 "+n+"개 획득 (보유 "+s.mat+"개)")}}
+      s.chp+=chp(s.cg)}
+    if(s.chp<=0)s.chp=chp(s.cg)}
+  if(s.autoRing&&s.ring>=1){let g=0;while(s.mat>=need(s.ring)&&g++<20)ringUp(need(s.ring),true)}
+  const d=dur();
+  for(let i=0;i<slots();i++){const f=s.forge[i];
+    if(!f){if(s.autoBuy&&s.m>=UNIT){s.m-=UNIT;s.forge[i]={t:1,p:0,paid:false};s.made++}continue}
+    if(f.t>=target()){if(s.autoPlace||f.t>=MAXT)place(i,f.t>=MAXT);continue}
+    if(!f.paid){if(s.m>=acost(f.t)){s.m-=acost(f.t);f.paid=true}else continue}
+    f.p+=dt;if(f.p<d)continue;
+    f.p=0;f.paid=false;const r=Math.random()*100,t=f.t;
+    if(r<pS(t)){f.t++;if(f.t>s.best)s.best=f.t;
+      if(f.t>=MAXT){log("gold","완성","마탑의 주인 탄생!");if(!s.fin){s.fin=true;s.endT=s.t}}
+      else if(f.t>=s.best-2||f.t%3===1)log("ok","성공",label(t)+" → "+label(f.t))}
+    else if(r>=100-pD(t)){s.forge[i]=null;s.boom++;if(t>=Math.max(4,s.best-6))log("bad","파괴",label(t)+" 소멸 · 기도 +"+pity().toFixed(1)+"%p")}
+  }
+}
+
+// ── 조작 ──
+function act(a,i){
+  if(a==="fh"){place(i,false)}
+  else if(a==="fs"){const f=s.forge[i];if(f){s.m+=sellv(f.t);log("min","판매",label(f.t)+" 판매 +"+fmt(sellv(f.t)));s.forge[i]=null}}
+  else if(a==="hs"){const t=s.hunt[i];if(t){s.m+=sellv(t);s.hunt.splice(i,1);log("min","판매",label(t)+" 판매 +"+fmt(sellv(t)))}}
+  else if(a==="hf"){const t=s.hunt[i];let k=-1;for(let n=0;n<slots();n++)if(!s.forge[n]){k=n;break}
+    if(t&&k>=0){s.forge[k]={t:t,p:0,paid:false};s.hunt.splice(i,1);log("min","이동",label(t)+" 강화대로")}}
+  else if(a==="summon"){if(!s.forge[i]&&s.m>=UNIT){s.m-=UNIT;s.forge[i]={t:1,p:0,paid:false};s.made++}}
+  else if(a==="ring1"){ringUp(1,false)}
+  else if(a==="ring3"){ringUp(need(s.ring),true)}
+  else if(a==="xup"){const u=XUP[i],k=s.x[i];if(s.m>=u.c(k)){s.m-=u.c(k);s.x[i]++;log("min","상점",u.name+" Lv."+s.x[i])}}
+  else if(a==="up"){const u=UP[i],k=s.up[i];if(k<u.max&&s.m>=u.c(k)){s.m-=u.c(k);s.up[i]++;log("min","상점",u.name+" Lv."+s.up[i]);buildTiers()}}
+  save();render()}
+
+// ── 화면 ──
+function build(){
+  let h="";for(let i=0;i<FS;i++)h+='<div class="slot" id="f'+i+'"><div class="top"><div class="unit"><span class="gem"></span><div><b id="fn'+i+'"></b><div class="sub" id="fo'+i+'"></div></div></div>'+
+    '<div class="btns"><button type="button" data-a="summon" data-i="'+i+'" id="fb0'+i+'">소환</button><button type="button" data-a="fh" data-i="'+i+'" id="fb1'+i+'">사냥터로</button><button type="button" data-a="fs" data-i="'+i+'" id="fb2'+i+'">판매</button></div></div>'+
+    '<div class="track"><i id="fp'+i+'"></i></div><div class="sub" id="fs'+i+'"></div></div>';
+  $("forge").innerHTML=h;
+  h="";for(let i=0;i<HS;i++)h+='<div class="slot" id="h'+i+'"><div class="top"><div class="unit"><span class="gem"></span><div><b id="hn'+i+'"></b><div class="sub" id="ho'+i+'"></div></div></div>'+
+    '<div class="btns"><button type="button" data-a="hf" data-i="'+i+'" id="hb1'+i+'">강화대로</button><button type="button" data-a="hs" data-i="'+i+'" id="hb2'+i+'">판매</button></div></div></div>';
+  $("hunt").innerHTML=h;
+  $("shop").innerHTML=Object.keys(UP).map(k=>'<button type="button" data-a="up" data-i="'+k+'" id="u_'+k+'"><span><b>'+UP[k].name+'</b><small id="ud_'+k+'"></small></span><span><span class="c" id="uc_'+k+'"></span><span class="lv" id="ul_'+k+'"></span></span></button>').join("");
+  $("xshop").innerHTML=Object.keys(XUP).map(k=>'<button type="button" data-a="xup" data-i="'+k+'" id="x_'+k+'"><span><b>'+XUP[k].name+'</b><small>'+XUP[k].desc+'</small></span><span><span class="c" id="xc_'+k+'"></span><span class="lv" id="xl_'+k+'"></span></span></button>').join("");
+  let o='<option value="auto">자동</option>';for(let t=2;t<=MAXT;t++)o+='<option value="'+t+'">'+label(t)+"</option>";$("target").innerHTML=o;
+  buildTiers()}
+function buildTiers(){let h="";for(let t=1;t<=MAXT;t++){
+  h+='<tr><td style="color:'+col(t)+'">'+label(t)+"</td>"+(t<MAXT?'<td class="s">'+pS(t).toFixed(1)+'%</td><td class="d">'+(pD(t)?pD(t).toFixed(1)+"%":"–")+"</td><td>"+fmt(acost(t))+"</td>":'<td colspan="3" style="color:var(--mute)">최고 등급</td>')+
+  "<td>"+fmtR(inc(t))+"</td><td>"+fmt(sellv(t))+"</td></tr>"}$("tiers").innerHTML=h}
+let tierKey="";
+function render(){
+  $("min").textContent=fmt(s.m);$("inc").textContent=fmtR(BASE+huntInc());$("pity").textContent="+"+pity().toFixed(1)+"%p";$("clock").textContent=fmtT(s.t);
+  const tg=target(),d=dur(),full=s.hunt.length>=hslots(),mj=minHunt(),anyEmpty=s.forge.slice(0,slots()).some(f=>!f);
+  for(let i=0;i<FS;i++){const el=$("f"+i),f=s.forge[i],open=i<slots();
+    el.hidden=i>slots();el.classList.toggle("locked",!open);el.style.setProperty("--g",f?col(f.t):"#3a4a44");
+    $("fb0"+i).hidden=!!f||!open;$("fb1"+i).hidden=$("fb2"+i).hidden=!f;
+    if(!open){$("fn"+i).textContent="잠김";$("fo"+i).textContent="상점에서 강화대 증설";$("fp"+i).style.width="0";$("fs"+i).textContent="";continue}
+    if(!f){$("fn"+i).textContent="비어 있음";$("fo"+i).textContent=s.autoBuy?"미네랄 10이 모이면 자동 소환":"소환을 눌러 견습생을 올리세요";$("fp"+i).style.width="0";$("fs"+i).textContent="";$("fb0"+i).disabled=s.m<UNIT;continue}
+    $("fn"+i).textContent=label(f.t);
+    $("fo"+i).innerHTML=f.t<MAXT?'<span class="s">성공 '+pS(f.t).toFixed(1)+'%</span> · <span class="d">파괴 '+pD(f.t).toFixed(1)+"%</span> · 시도비 "+fmt(acost(f.t)):"최고 등급";
+    const wait=f.t>=tg,broke=!wait&&!f.paid&&s.m<acost(f.t);
+    $("fp"+i).style.width=(wait?100:f.p/d*100)+"%";
+    $("fs"+i).textContent=wait?"목표 달성, 대기 중":broke?"미네랄 부족 ("+fmt(acost(f.t))+" 필요)":"강화 중 · 목표 "+label(tg);
+    $("fb1"+i).disabled=full&&mj>=0&&s.hunt[mj]>=f.t;$("fb2"+i).textContent="판매 +"+fmt(sellv(f.t))}
+  for(let i=0;i<HS;i++){const el=$("h"+i),t=s.hunt[i],open=i<hslots();
+    el.hidden=!open&&i>=hslots()+1;el.classList.toggle("locked",!open);el.style.setProperty("--g",t?col(t):"#3a4a44");
+    $("hb1"+i).hidden=$("hb2"+i).hidden=!t;
+    $("hn"+i).textContent=!open?"잠김":t?label(t):"빈 자리";$("ho"+i).textContent=!open?"상점에서 사냥터 확장":t?"초당 피해 "+fmtR(inc(t)):"목표를 달성한 유닛이 들어옵니다";
+    if(t){$("hb1"+i).disabled=!anyEmpty;$("hb2"+i).textContent="판매 +"+fmt(sellv(t))}}
+  const mh=chp(s.cg),dp=huntDps();
+  $("cgName").textContent="수정 Lv."+s.cg;$("cgSub").textContent="체력 "+fmtR(Math.max(0,s.chp))+" / "+fmtR(mh)+" · 보상 "+fmtR(reward())+" 미네랄 · 파괴 "+s.breaks.toLocaleString("ko-KR")+"회";
+  $("cgDps").textContent=dp>0?"초당 피해 "+fmtR(dp)+(s.ring?" (반지 +"+fmt(RB*s.ring*100)+"%)":"")+" · 약 "+fmtR(mh/dp)+"초에 1개":"사냥 중인 유닛이 없습니다";
+  $("cgBar").style.width=Math.max(0,Math.min(100,s.chp/mh*100))+"%";
+  $("cgOdds").textContent="깨질 때마다 등급 상승 1.2% · 반지 2.5% (한 번에 "+ringDrop()+"개)";
+  const rn=need(Math.max(1,s.ring));
+  $("ringName").textContent=s.ring?ringName(s.ring):"반지 없음";
+  $("ringSub").textContent=s.ring?"수정 피해 +"+fmt(RB*s.ring*100)+"% · 재료 "+s.mat+" / "+rn+"개":"수정이 깨질 때 낮은 확률로 나옵니다";
+  $("ring1").disabled=s.ring<1||s.mat<1;$("ring1").textContent="강화 (재료 1개, "+ringP(Math.max(1,s.ring))+"%)";
+  $("ring3").disabled=s.ring<1||s.mat<rn;$("ring3").textContent="확정 강화 (재료 "+rn+"개, 100%)";
+  $("autoRing").checked=s.autoRing;
+  for(const k in UP){const u=UP[k],lv=s.up[k],mx=lv>=u.max;$("u_"+k).disabled=mx||s.m<u.c(lv);$("uc_"+k).textContent=mx?"최대":fmt(u.c(lv));$("ul_"+k).textContent=" Lv."+lv+"/"+u.max;$("ud_"+k).textContent=u.desc(lv)}
+  for(const k in XUP){const lv=s.x[k];$("x_"+k).disabled=s.m<XUP[k].c(lv);$("xc_"+k).textContent=fmt(XUP[k].c(lv));$("xl_"+k).textContent=" Lv."+lv}
+  $("xsum").textContent="수정 피해 +"+fmt(s.x.amp*10)+"% · 보상 +"+fmt(s.x.loot*10)+"% · 강화 시간 "+fmtR(dur())+"초 · 기도 최대 +"+pityCap().toFixed(1)+"%p";
+  $("autoShop").checked=s.autoShop;
+  const key=s.up.succ+"|"+s.up.prot+"|"+Math.floor(pity()*10);if(key!==tierKey){tierKey=key;buildTiers()}
+  $("log").innerHTML=s.log.length?s.log.map(e=>'<li class="'+e[1]+'"><time>'+fmtT(e[0])+"</time><em>"+e[2]+"</em><span>"+e[3]+"</span></li>").join(""):'<li><time>0:00</time><em>시작</em><span>견습생이 강화 의식을 시작했습니다</span></li>';
+  if(document.activeElement!==$("target"))$("target").value=String(s.target);
+  $("autoBuy").checked=s.autoBuy;$("autoPlace").checked=s.autoPlace;
+  $("end").hidden=!s.fin;if(s.fin)$("endTxt").textContent=fmtT(s.endT)+" 만에 마탑의 주인을 만들었습니다. 소환 "+s.made.toLocaleString("ko-KR")+"명, 파괴 "+s.boom.toLocaleString("ko-KR")+"명.";
+}
+
+function save(){s.wall=Date.now();try{localStorage.setItem("mage-forge-v1",JSON.stringify(s))}catch(e){}cMark()}
+function adopt(d){if(d&&d.up&&Array.isArray(d.forge)&&Array.isArray(d.hunt)&&typeof d.t==="number"){s=Object.assign(fresh(),d);if(!(s.cg>=1))s.cg=1;if(typeof s.target==="number"&&s.target===16&&!d.v2)s.target="auto";s.v2=1;if(!(s.chp>0))s.chp=chp(s.cg);s.up=Object.assign(fresh().up,d.up);s.x=Object.assign(fresh().x,d.x||{});while(s.forge.length<FS)s.forge.push(null);if(!Array.isArray(s.log))s.log=[];return true}return false}
+function runFor(sec){const dt=sec>3*86400?2:sec>3600?1:STEP;for(let n=Math.floor(sec/dt);n>0;n--)stepSim(dt);return sec%dt}
+function catchUp(){const gap=Math.min((Date.now()-s.wall)/1000,OFFCAP);if(gap<15)return;
+  const b0=s.best,m0=s.m;live=false;runFor(gap);live=true;
+  const a=$("away");a.hidden=false;a.textContent="자리를 비운 "+fmtT(gap)+" 동안 미네랄 "+fmt(Math.max(0,s.m-m0))+" 증가, 최고 등급 "+label(b0)+(s.best>b0?" → "+label(s.best):" 유지")+".";
+  setTimeout(()=>{a.hidden=true},15000)}
+function tick(){const now=Date.now();acc+=Math.min((now-lastTick)/1000,OFFCAP);lastTick=now;
+  if(acc<STEP)return;live=acc<60;acc=runFor(acc);live=true;
+  if(now-lastSave>8000){lastSave=now;save()}render()}
+
+let cRef=null,cDirty=false,cBusy=false,cLast=0,cTimer=0;
+function cStatus(t){$("cloud").textContent=t}
+function cMark(){cDirty=true;if(!cRef||cTimer)return;cTimer=setTimeout(cFlush,Math.max(20000-(Date.now()-cLast),1500))}
+async function cFlush(){cTimer=0;if(!cRef||cBusy||!cDirty)return;cBusy=true;cDirty=false;cLast=Date.now();
+  try{await cRef.set({json:JSON.stringify(s),at:Date.now()});cStatus("계정에 저장됨")}
+  catch(e){cStatus("이 브라우저에만 저장 중");if(e&&e.code==="unavailable")cDirty=true;else cRef=null}
+  cBusy=false;if(cDirty&&cRef)cMark()}
+async function cInit(){try{if(!window.claude||!window.claude.use)return;
+  const r=await Promise.all([window.claude.use("db"),window.claude.use("user")]);if(!r[0]||!r[1])return;
+  const id=await r[1].id();if(!id)return;const ref=r[0].doc("data/users/"+id+"/save"),snap=await ref.get();
+  if(snap.exists){const d=snap.data();if(d&&typeof d.json==="string"){const c=JSON.parse(d.json);if(c&&c.t>s.t&&adopt(c)){catchUp();render()}}}
+  cRef=ref;cStatus("계정에 저장됨");cMark()}catch(e){}}
+
+function start(data){
+  build();let ok=adopt(data);
+  if(!ok){try{ok=adopt(JSON.parse(localStorage.getItem("mage-forge-v1")))}catch(e){}}
+  if(ok)catchUp();
+  lastTick=Date.now();render();setInterval(tick,100);
+  document.addEventListener("click",e=>{const b=e.target.closest("button[data-a]");if(!b||b.disabled)return;const a=b.dataset.a;act(a,a==="up"||a==="xup"?b.dataset.i:+b.dataset.i)});
+  $("target").addEventListener("change",e=>{s.target=e.target.value==="auto"?"auto":+e.target.value;save();render()});
+  $("autoBuy").addEventListener("change",e=>{s.autoBuy=e.target.checked;save();render()});
+  $("autoPlace").addEventListener("change",e=>{s.autoPlace=e.target.checked;save();render()});
+  $("autoRing").addEventListener("change",e=>{s.autoRing=e.target.checked;save();render()});
+  $("autoShop").addEventListener("change",e=>{s.autoShop=e.target.checked;save();render()});
+  $("xout").addEventListener("click",function(){
+    s.wall=Date.now();const code="MT1:"+btoa(unescape(encodeURIComponent(JSON.stringify(Object.assign({},s,{log:[]})))));
+    $("xfer").value=code;$("xfer").select();$("xmsg").textContent="코드를 만들었습니다. 길게 눌러 복사하세요.";
+    try{navigator.clipboard.writeText(code).then(()=>{$("xmsg").textContent="코드를 복사했습니다. 옮길 기기에서 붙여 넣으세요."},()=>{})}catch(e){}});
+  let xarm=0;$("xin").addEventListener("click",function(){
+    const raw=$("xfer").value.trim();let d=null;
+    try{d=JSON.parse(decodeURIComponent(escape(atob(raw.replace(/^MT1:/,"").replace(/\s+/g,"")))))}catch(e){}
+    if(!d||!d.up||!Array.isArray(d.forge)||typeof d.t!=="number"){$("xmsg").textContent="코드를 읽을 수 없습니다. 내보내기 코드를 전부 붙여 넣었는지 확인하세요.";return}
+    if(Date.now()>xarm){xarm=Date.now()+4000;$("xmsg").textContent="지금 기록을 덮어씁니다 (플레이 "+fmtT(d.t)+", 최고 "+label(d.best||1)+"). 맞으면 가져오기를 한 번 더 누르세요.";return}
+    xarm=0;if(adopt(d)){acc=0;lastTick=Date.now();catchUp();tierKey="";save();render();$("xfer").value="";$("xmsg").textContent="기록을 가져왔습니다."}});
+  let arm=0;$("reset").addEventListener("click",function(){
+    if(Date.now()>arm){arm=Date.now()+3000;this.textContent="정말 초기화? 한 번 더";setTimeout(()=>{this.textContent="처음부터 다시"},3000);return}
+    arm=0;this.textContent="처음부터 다시";s=fresh();acc=0;$("away").hidden=true;tierKey="";save();render()});
+  document.addEventListener("visibilitychange",()=>{if(document.hidden){save();if(cRef&&cDirty&&!cBusy){clearTimeout(cTimer);cFlush()}}});
+  cInit();
+  if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)window.claude.hot.snapshot(()=>s);
+}
+const hot=window.claude&&window.claude.hot;
+if(hot&&hot.ready)hot.ready(start);else start((hot&&hot.data)||{});
+})();
+</script>
+<script>if("serviceWorker" in navigator)window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});</script>
+</body>
+</html>
