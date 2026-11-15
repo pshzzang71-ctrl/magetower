@@ -140,7 +140,7 @@ td.s{color:var(--ok)} td.d{color:var(--bad)}
         <h2>지휘</h2>
         <label for="target">목표 등급 <select id="target"></select></label>
         <small>강화대의 유닛은 목표 등급이 될 때까지 계속 강화합니다. 자동은 사냥터에서 가장 낮은 유닛보다 세 단계 높게 잡습니다. 사냥터에 빈 자리가 있으면 두 단계 낮게 잡아 먼저 채웁니다.</small>
-        <label><input type="checkbox" id="autoBuy"> 빈 강화대에 견습생 자동 소환 (10 미네랄)</label>
+        <label><input type="checkbox" id="autoBuy"> 빈 강화대에 자동 소환 (시작 등급 × 10 미네랄)</label>
         <label><input type="checkbox" id="autoPlace"> 목표 달성 시 사냥터로 자동 배치</label>
         <small>사냥터가 가득 차면 가장 낮은 유닛을 팔고 교체합니다. 새 유닛이 더 낮으면 새 유닛을 팝니다.</small>
       </section>
@@ -172,9 +172,10 @@ td.s{color:var(--ok)} td.d{color:var(--bad)}
           <li>미네랄은 마력 샘에서 초당 0.5씩 나오고, 나머지는 <b>수정 파괴 보상</b>과 유닛 판매로 법니다.</li>
           <li><b>수정</b>: 사냥터 유닛이 깎습니다. 빨리 깨질수록 등급이 잘 오르고, 12초 넘게 걸리면 가끔 내려가서 대략 3~12초에 하나씩 깨집니다. 등급마다 체력 1.3배, 보상 1.5배이고 상한은 없습니다.</li>
           <li><b>반지</b>: 수정 100개째에 첫 반지를 확정으로 얻고, 이후 깨질 때마다 0.1% 확률로 재료가 나옵니다. 수정 등급 8마다 한 번에 나오는 개수가 1개씩 늘어납니다. 반지 1레벨마다 수정 피해 +25%, 레벨 상한은 없습니다.</li>
+          <li><b>시작 등급</b>: 새로 소환하는 유닛은 수정 레벨에 따라 높은 등급으로 시작합니다. 수정 Lv.15마다 한 단계씩 올라 일반 1 견습생부터 시작해 Lv.75부터는 레어 3 마법사(최대)로 시작합니다.</li>
           <li><b>장인의 기운</b>: 히든 1 이상에서 강화에 실패하면 그 강화대에 기운이 쌓이고(성공률만큼), 100%가 되면 다음 강화는 확정 성공입니다. 유닛이 파괴돼도 기운은 강화대에 남습니다.</li>
           <li>반지 확정 강화에 필요한 재료는 <b>현재 레벨 + 2개</b>로 계속 늘어납니다. 재료 1개로 확률 도전도 할 수 있고, 실패하면 재료만 사라집니다.</li>
-          <li>마법사는 일반부터 절대까지 20개 등급(각 1~3)과 최종 <b>마탑의 주인</b>, 모두 61단계입니다. 히든 1부터는 성공 8%, 파괴 32%가 기본입니다.</li>
+          <li>마법사는 일반부터 절대까지 20개 등급(각 1~3)과 최종 <b>마탑의 주인</b>, 모두 61단계입니다. 히든 1부터는 성공 8%, 파괴 33%가 기본입니다.</li>
           <li><b>마탑의 주인</b>을 한 명 만들면 클리어입니다.</li>
           <li>창을 닫아 둬도 그 시간만큼 진행됩니다 (최대 30일).</li>
         </ul>
@@ -193,11 +194,12 @@ td.s{color:var(--ok)} td.d{color:var(--bad)}
 <script>
 (function(){
 "use strict";
-// ── 밸런스(v5): 강화 의식 4초, 수정은 목표 3초에 맞춰 등급 자동 조절, 장인의 기운. 봇 시뮬레이션 최종 등급 712~1285일 (이전 918~1303일) ──
+// ── 밸런스(v6): v5 + 수정 레벨별 시작 등급(최대 일반 6), 파괴 33%. 봇 시뮬레이션 최종 등급 718~1077일 (v5 712~1285일) ──
 const S=[90,85,80,75,70,65,60,55,50,45,40,35,30,25,20];   // 성공 %
 const D=[0,0,0,5,8,10,12,15,18,20,22,25,25,28,30];        // 파괴 %
-const MAXT=61, UNIT=10, BASE=.5, T0=4, STEP=.1, S2=8, D2=32, CG2=2.3, AUTOK=3, OFFCAP=30*86400;
+const MAXT=61, UNIT=10, BASE=.5, T0=4, STEP=.1, S2=8, D2=33, CG2=2.3, AUTOK=3, OFFCAP=30*86400;
 const H0=5, HG=1.3, RG=1.5, RW=.15, GUP=.03, CT=3, RINGP=.001, FIRSTRING=100, RB=.25, GA=1;
+const sumT=()=>Math.min(6,1+Math.floor(s.cg/15)), sumC=()=>UNIT*sumT();
 const need=l=>l+2, ringDrop=()=>1+Math.floor(s.cg/8);
 const RNAME=["구리","은","금","백금","다이아","별빛","달빛","태양","은하","우주"];
 const ringName=l=>RNAME[Math.min(9,Math.floor((l-1)/10))]+" 반지 Lv."+l;
@@ -288,7 +290,7 @@ function stepSim(dt){
   const d=dur();
   for(let i=0;i<slots();i++){let budget=dt,guard=0;
    while(budget>0&&guard++<400){const f=s.forge[i];
-    if(!f){if(s.autoBuy&&s.m>=UNIT){s.m-=UNIT;s.forge[i]={t:1,p:0,paid:false};s.made++;continue}break}
+    if(!f){if(s.autoBuy&&s.m>=sumC()){s.m-=sumC();s.forge[i]={t:sumT(),p:0,paid:false};s.made++;continue}break}
     if(f.t>=target()){if(s.autoPlace||f.t>=MAXT){place(i,f.t>=MAXT);continue}break}
     if(!f.paid){if(s.m>=acost(f.t)){s.m-=acost(f.t);f.paid=true}else break}
     const left=d-f.p;if(left>budget){f.p+=budget;break}budget-=left;
@@ -309,7 +311,7 @@ function act(a,i){
   else if(a==="hs"){const t=s.hunt[i];if(t){s.m+=sellv(t);s.hunt.splice(i,1);log("min","판매",label(t)+" 판매 +"+fmt(sellv(t)))}}
   else if(a==="hf"){const t=s.hunt[i];let k=-1;for(let n=0;n<slots();n++)if(!s.forge[n]){k=n;break}
     if(t&&k>=0){s.forge[k]={t:t,p:0,paid:false};s.hunt.splice(i,1);log("min","이동",label(t)+" 강화대로")}}
-  else if(a==="summon"){if(!s.forge[i]&&s.m>=UNIT){s.m-=UNIT;s.forge[i]={t:1,p:0,paid:false};s.made++}}
+  else if(a==="summon"){if(!s.forge[i]&&s.m>=sumC()){s.m-=sumC();s.forge[i]={t:sumT(),p:0,paid:false};s.made++}}
   else if(a==="ring1"){ringUp(1,false)}
   else if(a==="ring3"){ringUp(need(s.ring),true)}
   else if(a==="xup"){const u=XUP[i],k=s.x[i];if(s.m>=u.c(k)){s.m-=u.c(k);s.x[i]++;log("min","상점",u.name+" Lv."+s.x[i])}}
@@ -340,7 +342,7 @@ function render(){
     el.hidden=i>slots();el.classList.toggle("locked",!open);el.style.setProperty("--g",f?col(f.t):"#3a4a44");
     $("fb0"+i).hidden=!!f||!open;$("fb1"+i).hidden=$("fb2"+i).hidden=!f;
     if(!open){$("fn"+i).textContent="잠김";$("fo"+i).textContent="상점에서 강화대 증설";$("fp"+i).style.width="0";$("fs"+i).textContent="";continue}
-    if(!f){$("fn"+i).textContent="비어 있음";$("fo"+i).textContent=s.autoBuy?"미네랄 10이 모이면 자동 소환":"소환을 눌러 견습생을 올리세요";$("fp"+i).style.width="0";$("fs"+i).textContent="";$("fb0"+i).disabled=s.m<UNIT;continue}
+    if(!f){$("fn"+i).textContent="비어 있음";$("fo"+i).textContent=(s.autoBuy?"미네랄 "+fmt(sumC())+"이 모이면 자동 소환":"소환을 눌러 유닛을 올리세요")+" · 시작 등급 "+label(sumT());$("fp"+i).style.width="0";$("fs"+i).textContent="";$("fb0"+i).disabled=s.m<sumC();continue}
     $("fn"+i).textContent=label(f.t);
     $("fo"+i).innerHTML=f.t<MAXT?'<span class="s">성공 '+pS(f.t).toFixed(1)+'%</span> · <span class="d">파괴 '+pD(f.t).toFixed(1)+"%</span> · 시도비 "+fmt(acost(f.t)):"최고 등급";
     const wait=f.t>=tg,broke=!wait&&!f.paid&&s.m<acost(f.t);
